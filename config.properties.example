@@ -1,0 +1,7 @@
+# ==========================================
+# Plantilla de Configuración JDBC - UNIAJC
+# Copia este archivo como 'config.properties'
+# ==========================================
+URL=jdbc:postgresql://db.fglbkkovkhfukqvunemv.supabase.co:5432/postgres?sslmode=require
+USERNAME=postgres
+PASSWORD=tu_contraseña_aqui
