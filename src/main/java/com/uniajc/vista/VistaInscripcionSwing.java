@@ -499,3 +499,4 @@ public class VistaInscripcionSwing extends JPanel implements ActionListener {
         }
     }
 }
+

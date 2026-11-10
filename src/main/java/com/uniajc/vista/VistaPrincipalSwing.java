@@ -200,3 +200,4 @@ public class VistaPrincipalSwing extends JFrame {
         return vistaInscripcion;
     }
 }
+
