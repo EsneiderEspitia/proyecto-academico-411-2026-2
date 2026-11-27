@@ -1,68 +1,96 @@
 package com.uniajc.db;
 
-// 1. Importar las clases necesarias de JDBC
-import java.sql.DriverManager;
-import java.sql.Connection;
-import java.sql.SQLException;
-
-// Otras importaciones necesarias para gestionar archivos de propiedades
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-
+import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.Properties;
 
+/**
+ * Gestor de conexión JDBC con patrón Singleton hacia la base de datos PostgreSQL.
+ */
 public class ConexionDatabase {
-    // Conexión única (singleton)
+
     private static Connection connection = null;
 
     /**
-     * Obtiene la conexión a la base de datos. Si no existe, la crea usando
-     * config.properties.
-     * 
-     * @return Objeto Connection listo para usar.
+     * Obtiene la conexión a la base de datos. Si no existe o está cerrada,
+     * la crea cargando los parámetros desde config.properties.
+     *
+     * @return Objeto Connection listo para usar, o null si falla.
      */
-    public static Connection getConnection() {
-
-        Properties properties = new Properties();
-
-        if (connection == null) {
-            try {
-
-                // Cargar las propiedades desde el archivo config.properties
-                properties.load(new FileInputStream(new File("config.properties")));
-
-                // Leer los parámetros de conexión
-                String url = properties.get("URL").toString();
-                String user = properties.get("USERNAME").toString();
-                String password = properties.get("PASSWORD").toString();
-
-                // Establecer la conexión
-                connection = DriverManager.getConnection(url, user, password);
-                System.out.println("Conexion exitosa.");
-            } catch (SQLException error) {
-                System.out.println("Failed to establish connection. " + error.getMessage());
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
+    public static synchronized Connection getConnection() {
+        try {
+            if (connection != null && !connection.isClosed()) {
+                return connection;
             }
+
+            Properties properties = new Properties();
+            InputStream input = null;
+
+            File configFile = new File("config.properties");
+            if (configFile.exists()) {
+                input = new FileInputStream(configFile);
+            } else {
+                input = ConexionDatabase.class.getClassLoader().getResourceAsStream("config.properties");
+            }
+
+            if (input == null) {
+                return null;
+            }
+
+            properties.load(input);
+            input.close();
+
+            String url = properties.getProperty("URL");
+            String user = properties.getProperty("USERNAME");
+            String password = properties.getProperty("PASSWORD");
+
+            if (url == null || user == null) {
+                return null;
+            }
+
+            // Registrar el driver de PostgreSQL
+            Class.forName("org.postgresql.Driver");
+
+            // Timeout rápido para evitar bloqueos
+            DriverManager.setLoginTimeout(3);
+
+            connection = DriverManager.getConnection(url, user, password);
+            System.out.println("Conexión exitosa a PostgreSQL.");
+
+        } catch (SQLException error) {
+            System.err.println("Aviso JDBC: " + error.getMessage());
+            connection = null;
+        } catch (ClassNotFoundException e) {
+            System.err.println("Driver PostgreSQL no encontrado: " + e.getMessage());
+        } catch (FileNotFoundException e) {
+            System.err.println("Archivo config.properties no encontrado: " + e.getMessage());
+        } catch (IOException e) {
+            System.err.println("Error al leer config.properties: " + e.getMessage());
         }
+
         return connection;
     }
 
     /**
      * Cierra la conexión a la base de datos si está abierta.
      */
-    public static void closeConnection() {
+    public static synchronized void closeConnection() {
         if (connection != null) {
             try {
-                connection.close();
-                System.out.println("Connection closed successfully.");
+                if (!connection.isClosed()) {
+                    connection.close();
+                    System.out.println("Conexión cerrada exitosamente.");
+                }
             } catch (SQLException e) {
-                e.printStackTrace();
-                System.out.println("Failed to close connection. " + e.getMessage());
+                System.err.println("Error al cerrar conexión: " + e.getMessage());
+            } finally {
+                connection = null;
             }
         }
     }
